@@ -25,9 +25,11 @@ async fn main() -> anyhow::Result<()> {
 
     let app = Router::new()
         .route("/health", get(handlers::health_check))
-        .route("/rooms", get(handlers::get_rooms))
-        .route("/bookings", get(handlers::get_bookings))
-        .route("/bookings", post(handlers::create_booking))
+        .route("/hotels/:id", get(handlers::get_hotel))
+        .route("/hotels/:id/rooms", get(handlers::get_rooms))
+        .route("/hotels/:id/bookings", get(handlers::get_bookings))
+        .route("/hotels/:id/bookings", post(handlers::create_booking))
+        .with_state(pool)
         .layer(CorsLayer::permissive());
 
     let addr = SocketAddr::from(([127, 0, 0, 1], 3000));

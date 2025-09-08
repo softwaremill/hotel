@@ -1,6 +1,13 @@
 use serde::{Deserialize, Serialize};
 use uuid::Uuid;
-use chrono::NaiveDate;
+use chrono::{DateTime, Utc};
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct Hotel {
+    pub id: i32,
+    pub name: String,
+    pub room_count: i32,
+}
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct Room {
@@ -13,10 +20,11 @@ pub struct Room {
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct Booking {
-    pub id: Uuid,
-    pub room_id: Uuid,
+    pub id: i32,
+    pub hotel_id: i32,
+    pub room_number: Option<i32>,
     pub guest_name: String,
-    pub check_in: NaiveDate,
-    pub check_out: NaiveDate,
-    pub total_price: f64,
+    pub start_time: DateTime<Utc>,
+    pub end_time: DateTime<Utc>,
+    pub status: String,
 }
