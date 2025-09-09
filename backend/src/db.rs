@@ -6,15 +6,14 @@ use std::str::FromStr;
 pub type DbPool = Pool<Postgres>;
 
 pub async fn create_pool(database_url: &str) -> Result<DbPool> {
-    let pool = PgPool::connect(database_url).await?;
-    Ok(pool)
+    Ok(PgPool::connect(database_url).await?)
 }
 
 pub async fn run_migrations(pool: &DbPool) -> Result<(), MigrateError> {
     sqlx::migrate!("./migrations").run(pool).await
 }
 
-pub async fn get_hotel_by_id(pool: &DbPool, id: i32) -> Result<Option<Hotel>> {
+pub async fn get_hotel_by_id(pool: &DbPool, id: i64) -> Result<Option<Hotel>> {
     let row = sqlx::query("SELECT id, name, room_count FROM hotels WHERE id = $1")
         .bind(id)
         .fetch_optional(pool)
@@ -30,7 +29,15 @@ pub async fn get_hotel_by_id(pool: &DbPool, id: i32) -> Result<Option<Hotel>> {
     }
 }
 
-pub async fn get_bookings_by_hotel_id(pool: &DbPool, hotel_id: i32) -> Result<Vec<Booking>> {
+pub async fn get_next_booking_id(pool: &DbPool) -> Result<i64> {
+    let row = sqlx::query("SELECT nextval('booking_id_seq') as next_id")
+        .fetch_one(pool)
+        .await?;
+
+    Ok(row.get("next_id"))
+}
+
+pub async fn get_bookings_by_hotel_id(pool: &DbPool, hotel_id: i64) -> Result<Vec<Booking>> {
     let rows = sqlx::query(
         "SELECT id, hotel_id, room_number, guest_name, start_time, end_time, status 
          FROM bookings 

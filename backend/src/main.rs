@@ -1,14 +1,18 @@
 use axum::{
-    routing::{get, post},
     Router,
+    routing::{get, post},
 };
-use tower_http::cors::CorsLayer;
-use std::net::SocketAddr;
 use std::env;
+use std::net::SocketAddr;
+use std::sync::Arc;
+use tower_http::cors::CorsLayer;
 
-mod models;
-mod handlers;
+mod app_state;
 mod db;
+mod event_processor;
+mod handlers;
+mod models;
+mod projections;
 
 #[tokio::main]
 async fn main() -> anyhow::Result<()> {
@@ -23,13 +27,21 @@ async fn main() -> anyhow::Result<()> {
     db::run_migrations(&pool).await?;
     println!("Migrations completed successfully");
 
+    // Set up event processor
+    let event_processor = Arc::new(event_processor::EventProcessor::new(pool.clone()));
+
+    // Create app state
+    let app_state = app_state::AppState {
+        db_pool: pool,
+        event_processor,
+    };
+
     let app = Router::new()
         .route("/health", get(handlers::health_check))
         .route("/hotels/:id", get(handlers::get_hotel))
-        .route("/hotels/:id/rooms", get(handlers::get_rooms))
         .route("/hotels/:id/bookings", get(handlers::get_bookings))
         .route("/hotels/:id/bookings", post(handlers::create_booking))
-        .with_state(pool)
+        .with_state(app_state)
         .layer(CorsLayer::permissive());
 
     let addr = SocketAddr::from(([127, 0, 0, 1], 3000));

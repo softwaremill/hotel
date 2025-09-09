@@ -3,7 +3,7 @@
 -- The rooms are numbered from 1 to room_count (inclusive)
 
 CREATE TABLE hotels (
-    id          SERIAL PRIMARY KEY,
+    id          BIGSERIAL PRIMARY KEY,
     name        TEXT NOT NULL,
     room_count  INTEGER NOT NULL CHECK (room_count > 0)
 );

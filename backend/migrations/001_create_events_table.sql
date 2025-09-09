@@ -2,9 +2,9 @@
 -- Based on: https://softwaremill.com/implementing-event-sourcing-using-a-relational-database/
 
 CREATE TABLE events (
-    id        SERIAL PRIMARY KEY,
+    id        BIGSERIAL PRIMARY KEY,
     stream_id BIGINT NOT NULL,
-    version   BIGINT NOT NULL,
+    version   INTEGER NOT NULL,
     data      JSONB  NOT NULL,
     created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
     

@@ -1,6 +1,5 @@
-use serde::{Deserialize, Serialize};
-use uuid::Uuid;
 use chrono::{DateTime, Utc};
+use serde::{Deserialize, Serialize};
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(rename_all = "snake_case")]
@@ -39,27 +38,41 @@ impl std::str::FromStr for BookingStatus {
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct Hotel {
-    pub id: i32,
+    pub id: i64,
     pub name: String,
     pub room_count: i32,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct Room {
-    pub id: Uuid,
-    pub number: String,
-    pub room_type: String,
-    pub price_per_night: f64,
-    pub is_available: bool,
-}
-
-#[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct Booking {
-    pub id: i32,
-    pub hotel_id: i32,
+    pub id: i64,
+    pub hotel_id: i64,
     pub room_number: Option<i32>,
     pub guest_name: String,
     pub start_time: DateTime<Utc>,
     pub end_time: DateTime<Utc>,
     pub status: BookingStatus,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct CreateBookingRequest {
+    pub guest_name: String,
+    pub start_time: DateTime<Utc>,
+    pub end_time: DateTime<Utc>,
+}
+
+// Event types for event sourcing
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(tag = "event_type", content = "data")]
+pub enum Event {
+    BookingCreated(BookingCreatedEvent),
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct BookingCreatedEvent {
+    pub booking_id: i64,
+    pub hotel_id: i64,
+    pub guest_name: String,
+    pub start_time: DateTime<Utc>,
+    pub end_time: DateTime<Utc>,
 }
