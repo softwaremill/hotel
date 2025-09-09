@@ -1,4 +1,5 @@
-use crate::models::{Event, BookingStatus};
+use crate::models::BookingStatus;
+use crate::models_events::Event;
 use anyhow::Result;
 use sqlx::{Postgres, Transaction};
 

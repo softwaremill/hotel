@@ -12,10 +12,15 @@ mod db;
 mod event_processor;
 mod handlers;
 mod models;
+mod models_events;
+mod models_request;
 mod projections;
 
 #[tokio::main]
 async fn main() -> anyhow::Result<()> {
+    // Initialize logging
+    tracing_subscriber::fmt::init();
+
     // Get database URL from environment or use default for development
     let database_url = env::var("DATABASE_URL")
         .unwrap_or_else(|_| "postgres://postgres:postgres@localhost:5432/hotel".to_string());

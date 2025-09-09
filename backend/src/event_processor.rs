@@ -1,5 +1,5 @@
 use crate::db::DbPool;
-use crate::models::Event;
+use crate::models_events::Event;
 use anyhow::Result;
 use sqlx::{Postgres, Row, Transaction};
 

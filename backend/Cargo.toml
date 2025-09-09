@@ -14,3 +14,5 @@ chrono = { version = "0.4", features = ["serde"] }
 anyhow = "1.0"
 tower = "0.4"
 tower-http = { version = "0.5", features = ["cors"] }
+tracing = "0.1"
+tracing-subscriber = { version = "0.3", features = ["env-filter"] }

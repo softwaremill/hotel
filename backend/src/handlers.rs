@@ -1,12 +1,42 @@
 use crate::app_state::AppState;
 use crate::db::{get_bookings_by_hotel_id, get_hotel_by_id, get_next_booking_id};
-use crate::models::{Booking, BookingCreatedEvent, CreateBookingRequest, Event, Hotel};
+use crate::models_events::{BookingCreatedEvent, Event};
+use crate::models_request::CreateBookingRequest;
 use axum::{
     Json,
     extract::{Path, State},
-    response::Json as ResponseJson,
+    http::StatusCode,
+    response::{IntoResponse, Json as ResponseJson, Response},
 };
 use serde_json::{Value, json};
+use tracing::error;
+
+fn internal_server_error() -> Response {
+    (
+        StatusCode::INTERNAL_SERVER_ERROR,
+        ResponseJson(json!({
+            "error": "Internal server error"
+        })),
+    ).into_response()
+}
+
+fn not_found_error(message: &str) -> Response {
+    (
+        StatusCode::NOT_FOUND,
+        ResponseJson(json!({
+            "error": message
+        })),
+    ).into_response()
+}
+
+fn bad_request_error(message: &str) -> Response {
+    (
+        StatusCode::BAD_REQUEST,
+        ResponseJson(json!({
+            "error": message,
+        })),
+    ).into_response()
+}
 
 pub async fn health_check() -> ResponseJson<Value> {
     ResponseJson(json!({
@@ -18,13 +48,13 @@ pub async fn health_check() -> ResponseJson<Value> {
 pub async fn get_bookings(
     State(app_state): State<AppState>,
     Path(hotel_id): Path<i64>,
-) -> Result<ResponseJson<Vec<Booking>>, ResponseJson<Value>> {
+) -> Response {
     match get_bookings_by_hotel_id(&app_state.db_pool, hotel_id).await {
-        Ok(bookings) => Ok(ResponseJson(bookings)),
-        Err(err) => Err(ResponseJson(json!({
-            "error": "Database error",
-            "message": err.to_string()
-        }))),
+        Ok(bookings) => (StatusCode::OK, ResponseJson(bookings)).into_response(),
+        Err(err) => {
+            error!("Failed to get bookings for hotel {}: {}", hotel_id, err);
+            internal_server_error()
+        }
     }
 }
 
@@ -32,15 +62,13 @@ pub async fn create_booking(
     State(app_state): State<AppState>,
     Path(hotel_id): Path<i64>,
     Json(request): Json<CreateBookingRequest>,
-) -> Result<ResponseJson<Value>, ResponseJson<Value>> {
-    // Generate booking ID
+) -> Response {
+    // Generate booking ID - failure here is a server error (500)
     let booking_id = match get_next_booking_id(&app_state.db_pool).await {
         Ok(id) => id,
         Err(err) => {
-            return Err(ResponseJson(json!({
-                "error": "Failed to generate booking ID",
-                "message": err.to_string()
-            })));
+            error!("Failed to generate booking ID: {}", err);
+            return internal_server_error();
         }
     };
 
@@ -53,37 +81,32 @@ pub async fn create_booking(
         end_time: request.end_time,
     });
 
-    // Process the event (will insert into events table and update projections)
+    // Process the event - failure here might be user error (400)
     let stream_id = booking_id; // Use booking_id as stream_id
     match app_state
         .event_processor
         .process_event(stream_id, event)
         .await
     {
-        Ok(_) => Ok(ResponseJson(json!({
-            "booking_id": booking_id,
-            "message": "Booking created successfully"
-        }))),
-        Err(err) => Err(ResponseJson(json!({
-            "error": "Failed to create booking",
-            "message": err.to_string()
-        }))),
+        Ok(_) => (
+            StatusCode::CREATED,
+            ResponseJson(json!({
+                "booking_id": booking_id,
+                "message": "Booking created successfully"
+            })),
+        )
+            .into_response(),
+        Err(err) => bad_request_error(&format!("Failed to create booking: {}", err)),
     }
 }
 
-pub async fn get_hotel(
-    State(app_state): State<AppState>,
-    Path(id): Path<i64>,
-) -> Result<ResponseJson<Hotel>, ResponseJson<Value>> {
+pub async fn get_hotel(State(app_state): State<AppState>, Path(id): Path<i64>) -> Response {
     match get_hotel_by_id(&app_state.db_pool, id).await {
-        Ok(Some(hotel)) => Ok(ResponseJson(hotel)),
-        Ok(None) => Err(ResponseJson(json!({
-            "error": "Hotel not found",
-            "id": id
-        }))),
-        Err(err) => Err(ResponseJson(json!({
-            "error": "Database error",
-            "message": err.to_string()
-        }))),
+        Ok(Some(hotel)) => (StatusCode::OK, ResponseJson(hotel)).into_response(),
+        Ok(None) => not_found_error("Hotel not found"),
+        Err(err) => {
+            error!("Failed to get hotel {}: {}", id, err);
+            internal_server_error()
+        }
     }
 }

@@ -42,7 +42,7 @@ pub async fn get_bookings_by_hotel_id(pool: &DbPool, hotel_id: i64) -> Result<Ve
         "SELECT id, hotel_id, room_number, guest_name, start_time, end_time, status 
          FROM bookings 
          WHERE hotel_id = $1
-         ORDER BY start_time DESC",
+         ORDER BY start_time DESC"
     )
     .bind(hotel_id)
     .fetch_all(pool)
