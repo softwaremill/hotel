@@ -29,6 +29,21 @@ pub async fn get_hotel_by_id(pool: &DbPool, id: i64) -> Result<Option<Hotel>> {
     }
 }
 
+fn row_to_booking(row: &sqlx::postgres::PgRow) -> Result<Booking> {
+    let status_str: String = row.get("status");
+    let status = BookingStatus::from_str(&status_str).map_err(|e| anyhow!(e))?;
+
+    Ok(Booking {
+        id: row.get("id"),
+        hotel_id: row.get("hotel_id"),
+        room_number: row.get("room_number"),
+        guest_name: row.get("guest_name"),
+        start_time: row.get("start_time"),
+        end_time: row.get("end_time"),
+        status,
+    })
+}
+
 pub async fn get_next_booking_id(pool: &DbPool) -> Result<i64> {
     let row = sqlx::query("SELECT nextval('booking_id_seq') as next_id")
         .fetch_one(pool)
@@ -37,31 +52,44 @@ pub async fn get_next_booking_id(pool: &DbPool) -> Result<i64> {
     Ok(row.get("next_id"))
 }
 
+pub async fn get_overlapping_bookings(
+    pool: &DbPool,
+    hotel_id: i64,
+    start_time: chrono::DateTime<chrono::Utc>,
+    end_time: chrono::DateTime<chrono::Utc>,
+) -> Result<Vec<Booking>> {
+    let rows = sqlx::query(
+        "SELECT id, hotel_id, room_number, guest_name, start_time, end_time, status 
+         FROM bookings 
+         WHERE hotel_id = $1 
+         AND status IN ('confirmed', 'checked_in')
+         AND start_time <= $3 
+         AND end_time >= $2
+         ORDER BY start_time",
+    )
+    .bind(hotel_id)
+    .bind(start_time)
+    .bind(end_time)
+    .fetch_all(pool)
+    .await?;
+
+    rows.into_iter()
+        .map(|row| row_to_booking(&row))
+        .collect()
+}
+
 pub async fn get_bookings_by_hotel_id(pool: &DbPool, hotel_id: i64) -> Result<Vec<Booking>> {
     let rows = sqlx::query(
         "SELECT id, hotel_id, room_number, guest_name, start_time, end_time, status 
          FROM bookings 
          WHERE hotel_id = $1
-         ORDER BY start_time DESC"
+         ORDER BY start_time DESC",
     )
     .bind(hotel_id)
     .fetch_all(pool)
     .await?;
 
     rows.into_iter()
-        .map(|row| {
-            let status_str: String = row.get("status");
-            let status = BookingStatus::from_str(&status_str).map_err(|e| anyhow!(e));
-
-            Ok(Booking {
-                id: row.get("id"),
-                hotel_id: row.get("hotel_id"),
-                room_number: row.get("room_number"),
-                guest_name: row.get("guest_name"),
-                start_time: row.get("start_time"),
-                end_time: row.get("end_time"),
-                status: status?,
-            })
-        })
+        .map(|row| row_to_booking(&row))
         .collect()
 }

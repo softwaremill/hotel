@@ -1,7 +1,8 @@
 use crate::app_state::AppState;
-use crate::db::{get_bookings_by_hotel_id, get_hotel_by_id, get_next_booking_id};
+use crate::db::{get_bookings_by_hotel_id, get_hotel_by_id, get_next_booking_id, get_overlapping_bookings};
 use crate::models_events::{BookingCreatedEvent, Event};
 use crate::models_request::CreateBookingRequest;
+use crate::room_assignment::can_accommodate_booking;
 use axum::{
     Json,
     extract::{Path, State},
@@ -29,13 +30,25 @@ fn not_found_error(message: &str) -> Response {
     ).into_response()
 }
 
-fn bad_request_error(message: &str) -> Response {
+fn bad_request_error_with_code(message: &str, code: &str) -> Response {
     (
         StatusCode::BAD_REQUEST,
         ResponseJson(json!({
             "error": message,
+            "code": code,
         })),
     ).into_response()
+}
+
+async fn get_hotel_or_error(pool: &crate::db::DbPool, hotel_id: i64) -> Result<crate::models::Hotel, Response> {
+    match get_hotel_by_id(pool, hotel_id).await {
+        Ok(Some(hotel)) => Ok(hotel),
+        Ok(None) => Err(not_found_error("Hotel not found")),
+        Err(err) => {
+            error!("Failed to get hotel {}: {}", hotel_id, err);
+            Err(internal_server_error())
+        }
+    }
 }
 
 pub async fn health_check() -> ResponseJson<Value> {
@@ -63,6 +76,35 @@ pub async fn create_booking(
     Path(hotel_id): Path<i64>,
     Json(request): Json<CreateBookingRequest>,
 ) -> Response {
+    // First, get hotel info to check room count
+    let hotel = match get_hotel_or_error(&app_state.db_pool, hotel_id).await {
+        Ok(hotel) => hotel,
+        Err(response) => return response,
+    };
+
+    // Check room availability
+    let overlapping_bookings = match get_overlapping_bookings(
+        &app_state.db_pool,
+        hotel_id,
+        request.start_time,
+        request.end_time,
+    ).await {
+        Ok(bookings) => bookings,
+        Err(err) => {
+            error!("Failed to check overlapping bookings for hotel {}: {}", hotel_id, err);
+            return internal_server_error();
+        }
+    };
+
+    if !can_accommodate_booking(
+        hotel.room_count,
+        overlapping_bookings,
+        request.start_time,
+        request.end_time,
+    ) {
+        return bad_request_error_with_code("No rooms available for the requested dates", "NO_ROOMS_AVAILABLE");
+    }
+
     // Generate booking ID - failure here is a server error (500)
     let booking_id = match get_next_booking_id(&app_state.db_pool).await {
         Ok(id) => id,
@@ -96,17 +138,13 @@ pub async fn create_booking(
             })),
         )
             .into_response(),
-        Err(err) => bad_request_error(&format!("Failed to create booking: {}", err)),
+        Err(err) => bad_request_error_with_code(&format!("Failed to create booking: {}", err), "BOOKING_CREATION_FAILED"),
     }
 }
 
 pub async fn get_hotel(State(app_state): State<AppState>, Path(id): Path<i64>) -> Response {
-    match get_hotel_by_id(&app_state.db_pool, id).await {
-        Ok(Some(hotel)) => (StatusCode::OK, ResponseJson(hotel)).into_response(),
-        Ok(None) => not_found_error("Hotel not found"),
-        Err(err) => {
-            error!("Failed to get hotel {}: {}", id, err);
-            internal_server_error()
-        }
+    match get_hotel_or_error(&app_state.db_pool, id).await {
+        Ok(hotel) => (StatusCode::OK, ResponseJson(hotel)).into_response(),
+        Err(response) => response,
     }
 }

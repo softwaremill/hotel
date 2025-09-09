@@ -15,6 +15,7 @@ mod models;
 mod models_events;
 mod models_request;
 mod projections;
+mod room_assignment;
 
 #[tokio::main]
 async fn main() -> anyhow::Result<()> {
