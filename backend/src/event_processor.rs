@@ -3,20 +3,21 @@ use crate::models_events::Event;
 use anyhow::Result;
 use sqlx::{Postgres, Row, Transaction};
 
-pub struct EventProcessor {
-    pool: DbPool,
-}
+pub struct EventProcessor;
 
 impl EventProcessor {
-    pub fn new(pool: DbPool) -> Self {
-        Self { pool }
+    pub fn new(_pool: DbPool) -> Self {
+        Self
     }
 
-    pub async fn process_event(&self, stream_id: i64, event: Event) -> Result<()> {
-        let mut tx = self.pool.begin().await?;
-
+    pub async fn process_event_with_tx(
+        &self,
+        tx: &mut Transaction<'_, Postgres>,
+        stream_id: i64,
+        event: Event,
+    ) -> Result<()> {
         // Get next version for this stream
-        let version = self.get_next_version(&mut tx, stream_id).await?;
+        let version = self.get_next_version(tx, stream_id).await?;
 
         // Insert event into events table
         let event_data = serde_json::to_value(&event)?;
@@ -24,18 +25,16 @@ impl EventProcessor {
             .bind(stream_id)
             .bind(version)
             .bind(event_data)
-            .execute(&mut *tx)
+            .execute(&mut **tx)
             .await?;
 
         // Apply projection updates directly
         match &event {
             Event::BookingCreated(_) => {
-                crate::projections::handle_booking_created(&mut tx, &event).await?;
+                crate::projections::handle_booking_created(tx, &event).await?;
             }
         }
 
-        // Commit transaction
-        tx.commit().await?;
         Ok(())
     }
 
