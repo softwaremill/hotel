@@ -4,39 +4,56 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## Project Overview
 
-The app is a demo of a simple hotel room booking system.
+The app is a hotel room booking system with event sourcing architecture.
 
-- `backend/` - Backend services, exposing an HTTP API
-- `frontend-front-desk/` - Front desk staff interface 
-- `frontend-user/` - Guest/customer interface
+- `backend/` - Rust backend with Axum web framework, PostgreSQL database, event sourcing
+- `frontend-front-desk/` - React TypeScript front desk staff interface (Vite)
+- `frontend-user/` - React TypeScript guest interface (Vite, currently minimal)
 
-## Development Setup
+## Development Commands
 
-The project appears to be in early stages with empty directories. Based on the `.gitignore` file, this project is set up for Rust development with Cargo as the build system.
+### Backend (Rust)
+- `cd backend && cargo run` - Run the backend server (port 3000)
+- `cd backend && cargo check` - Check code without building
+- `cd backend && cargo build` - Build the project
+- `cd backend && cargo test` - Run tests
 
-## Project Structure
+### Frontend Front Desk
+- `cd frontend-front-desk && npm run dev` - Development server
+- `cd frontend-front-desk && npm run build` - Production build (TypeScript compile + Vite build)
+- `cd frontend-front-desk && npm run lint` - ESLint checking
+- `cd frontend-front-desk && npm run preview` - Preview production build
 
-```
-hotel/
-├── backend/           # Backend services
-├── frontend-front-desk/  # Front desk interface
-├── frontend-user/     # Guest interface
-├── .vscode/          # VS Code settings
-├── .gitignore        # Git ignore rules for Rust
-└── LICENSE           # Project license
-```
+### Frontend User
+- `cd frontend-user && npm run dev` - Development server  
+- `cd frontend-user && npm run build` - Production build
+- `cd frontend-user && npm run lint` - ESLint checking
 
-## Next Steps
+## Architecture Overview
 
-This repository appears to be newly initialized. When development begins:
+### Backend Architecture
+- **Event Sourcing**: Uses event store pattern with PostgreSQL
+- **Event Types**: `BookingCreated`, `BookingCheckedIn` events in `models_events.rs`
+- **Projections**: Event handlers update read models in `projections.rs`
+- **Database**: PostgreSQL with SQLx for migrations and queries
+- **API**: REST endpoints for hotels, bookings, and check-in operations
+- **Room Assignment**: Automatic room assignment logic in `room_assignment.rs`
 
-1. Add `Cargo.toml` files to define Rust projects in each directory
-2. Implement the backend API services
-3. Build the frontend applications (likely web-based)
-4. Add build scripts and development commands
+### Frontend Architecture  
+- **Front Desk**: Multi-page React app with React Router
+  - Hotel selection page
+  - Bookings dashboard with date filtering and check-in functionality
+- **State Management**: Component-level state, no global state management
+- **API Integration**: Fetch calls to backend REST API
+- **Styling**: CSS modules/plain CSS
 
-## Notes
+### Database Schema
+- `events` - Event store table for all domain events
+- `hotels` - Hotel master data
+- `bookings` - Projection table for current booking state
+- Migrations in `backend/migrations/` directory
 
-- Project uses Rust toolchain (evidenced by gitignore patterns)
-- Multi-frontend architecture suggests different user roles (staff vs guests)
-- Repository is currently at initial commit stage
+### Key Domain Models
+- `Event` enum with `BookingCreated` and `BookingCheckedIn` variants
+- `BookingStatus` enum: `Confirmed`, `CheckedIn`
+- Hotels have rooms numbered 1-N, automatically assigned on check-in

@@ -147,6 +147,12 @@ h1 {
   margin-bottom: 15px;
 }
 
+.booking-header-left {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
 .booking-header h4 {
   color: #1a202c;
   font-size: 1.1rem;
@@ -200,6 +206,27 @@ h1 {
   font-size: 0.9rem;
 }
 
+.checkin-button {
+  background-color: #16a34a;
+  color: white;
+  padding: 8px 16px;
+  border: none;
+  border-radius: 6px;
+  font-size: 0.9rem;
+  font-weight: 500;
+  cursor: pointer;
+  transition: background-color 0.2s ease;
+}
+
+.checkin-button:hover:not(:disabled) {
+  background-color: #15803d;
+}
+
+.checkin-button:disabled {
+  background-color: #9ca3af;
+  cursor: not-allowed;
+}
+
 /* Common Styles */
 .loading, .error, .empty-state {
   text-align: center;
@@ -239,7 +266,17 @@ h1 {
   
   .booking-header {
     flex-direction: column;
+    align-items: stretch;
+    gap: 15px;
+  }
+
+  .booking-header-left {
+    flex-direction: column;
     align-items: flex-start;
-    gap: 10px;
+    gap: 8px;
+  }
+
+  .checkin-button {
+    align-self: flex-start;
   }
 }

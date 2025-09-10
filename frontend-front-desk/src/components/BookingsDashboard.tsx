@@ -23,6 +23,7 @@ export default function BookingsDashboard() {
   const [hotel, setHotel] = useState<Hotel | null>(null)
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState('')
+  const [checkinLoading, setCheckinLoading] = useState<number | null>(null)
 
   const today = new Date().toISOString().split('T')[0]
 
@@ -60,6 +61,29 @@ export default function BookingsDashboard() {
       console.error('Failed to load bookings:', error)
     } finally {
       setLoading(false)
+    }
+  }
+
+  const handleCheckin = async (bookingId: number) => {
+    setCheckinLoading(bookingId)
+    
+    try {
+      const response = await fetch(`http://localhost:3000/bookings/${bookingId}/checkin?today=${today}`, {
+        method: 'POST',
+      })
+      
+      if (response.ok) {
+        // Re-fetch bookings to get updated status
+        await loadBookings()
+      } else {
+        const errorData = await response.json()
+        setError(`Failed to check in: ${errorData.error || 'Unknown error'}`)
+      }
+    } catch (error) {
+      setError('Failed to check in booking')
+      console.error('Checkin failed:', error)
+    } finally {
+      setCheckinLoading(null)
     }
   }
 
@@ -110,8 +134,19 @@ export default function BookingsDashboard() {
             {bookings.map(booking => (
               <div key={booking.id} className="booking-card">
                 <div className="booking-header">
-                  <h4>{booking.guest_name}</h4>
-                  {getStatusBadge(booking.status)}
+                  <div className="booking-header-left">
+                    <h4>{booking.guest_name}</h4>
+                    {getStatusBadge(booking.status)}
+                  </div>
+                  {booking.status === 'confirmed' && (
+                    <button
+                      className="checkin-button"
+                      onClick={() => handleCheckin(booking.id)}
+                      disabled={checkinLoading === booking.id}
+                    >
+                      {checkinLoading === booking.id ? 'Checking in...' : 'Check In'}
+                    </button>
+                  )}
                 </div>
                 <div className="booking-details">
                   <div className="detail">
