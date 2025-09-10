@@ -9,6 +9,7 @@ use tower_http::cors::CorsLayer;
 
 mod app_state;
 mod db;
+mod error;
 mod event_processor;
 mod handlers;
 mod models;

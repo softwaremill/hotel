@@ -2,6 +2,8 @@ use crate::app_state::AppState;
 use crate::db::{
     get_bookings_by_hotel_id, get_hotel_by_id, get_next_booking_id, get_overlapping_bookings,
 };
+use crate::error::{AppError, AppResult};
+use crate::models::Hotel;
 use crate::models_events::{BookingCreatedEvent, Event};
 use crate::models_request::CreateBookingRequest;
 use crate::room_assignment::can_accommodate_booking;
@@ -13,53 +15,14 @@ use axum::{
 };
 use serde_json::{Value, json};
 use sqlx::{Executor, Postgres};
-use tracing::error;
 
-fn internal_server_error() -> Response {
-    (
-        StatusCode::INTERNAL_SERVER_ERROR,
-        ResponseJson(json!({
-            "error": "Internal server error"
-        })),
-    )
-        .into_response()
-}
-
-fn not_found_error(message: &str) -> Response {
-    (
-        StatusCode::NOT_FOUND,
-        ResponseJson(json!({
-            "error": message
-        })),
-    )
-        .into_response()
-}
-
-fn bad_request_error_with_code(message: &str, code: &str) -> Response {
-    (
-        StatusCode::BAD_REQUEST,
-        ResponseJson(json!({
-            "error": message,
-            "code": code,
-        })),
-    )
-        .into_response()
-}
-
-async fn get_hotel_or_error<'a, E>(
-    executor: E,
-    hotel_id: i64,
-) -> Result<crate::models::Hotel, Response>
+async fn get_hotel_or_not_found<'a, E>(executor: E, hotel_id: i64) -> AppResult<Hotel>
 where
     E: Executor<'a, Database = Postgres>,
 {
-    match get_hotel_by_id(executor, hotel_id).await {
-        Ok(Some(hotel)) => Ok(hotel),
-        Ok(None) => Err(not_found_error("Hotel not found")),
-        Err(err) => {
-            error!("Failed to get hotel {}: {}", hotel_id, err);
-            Err(internal_server_error())
-        }
+    match get_hotel_by_id(executor, hotel_id).await? {
+        Some(hotel) => Ok(hotel),
+        None => Err(AppError::not_found("Hotel not found")),
     }
 }
 
@@ -73,50 +36,25 @@ pub async fn health_check() -> ResponseJson<Value> {
 pub async fn get_bookings(
     State(app_state): State<AppState>,
     Path(hotel_id): Path<i64>,
-) -> Response {
-    match get_bookings_by_hotel_id(&app_state.db_pool, hotel_id).await {
-        Ok(bookings) => (StatusCode::OK, ResponseJson(bookings)).into_response(),
-        Err(err) => {
-            error!("Failed to get bookings for hotel {}: {}", hotel_id, err);
-            internal_server_error()
-        }
-    }
+) -> AppResult<Response> {
+    let bookings = get_bookings_by_hotel_id(&app_state.db_pool, hotel_id).await?;
+    Ok((StatusCode::OK, ResponseJson(bookings)).into_response())
 }
 
 pub async fn create_booking(
     State(app_state): State<AppState>,
     Path(hotel_id): Path<i64>,
     Json(request): Json<CreateBookingRequest>,
-) -> Response {
+) -> AppResult<Response> {
     // Start a single database transaction for the entire operation
-    let mut tx = match app_state.db_pool.begin().await {
-        Ok(tx) => tx,
-        Err(err) => {
-            error!("Failed to start transaction: {}", err);
-            return internal_server_error();
-        }
-    };
+    let mut tx = app_state.db_pool.begin().await?;
 
     // First, get hotel info to check room count within the transaction
-    let hotel = match get_hotel_or_error(&mut *tx, hotel_id).await {
-        Ok(hotel) => hotel,
-        Err(response) => return response,
-    };
+    let hotel = get_hotel_or_not_found(&mut *tx, hotel_id).await?;
 
     // Check room availability within the transaction
     let overlapping_bookings =
-        match get_overlapping_bookings(&mut tx, hotel_id, request.start_time, request.end_time)
-            .await
-        {
-            Ok(bookings) => bookings,
-            Err(err) => {
-                error!(
-                    "Failed to check overlapping bookings for hotel {}: {}",
-                    hotel_id, err
-                );
-                return internal_server_error();
-            }
-        };
+        get_overlapping_bookings(&mut tx, hotel_id, request.start_time, request.end_time).await?;
 
     if !can_accommodate_booking(
         hotel.room_count,
@@ -124,20 +62,14 @@ pub async fn create_booking(
         request.start_time,
         request.end_time,
     ) {
-        return bad_request_error_with_code(
+        return Err(AppError::bad_request(
             "No rooms available for the requested dates",
             "NO_ROOMS_AVAILABLE",
-        );
+        ));
     }
 
     // Generate booking ID within the transaction
-    let booking_id = match get_next_booking_id(&mut tx).await {
-        Ok(id) => id,
-        Err(err) => {
-            error!("Failed to generate booking ID: {}", err);
-            return internal_server_error();
-        }
-    };
+    let booking_id = get_next_booking_id(&mut tx).await?;
 
     // Create the booking event
     let event = Event::BookingCreated(BookingCreatedEvent {
@@ -150,37 +82,28 @@ pub async fn create_booking(
 
     // Process the event within the existing transaction
     let stream_id = booking_id; // Use booking_id as stream_id
-    if let Err(err) = app_state
+    app_state
         .event_processor
         .process_event_with_tx(&mut tx, stream_id, event)
-        .await
-    {
-        error!("Failed to process booking event: {}", err);
-        return bad_request_error_with_code(
-            &format!("Failed to create booking: {}", err),
-            "BOOKING_CREATION_FAILED",
-        );
-    }
+        .await?;
 
     // Commit the transaction
-    if let Err(err) = tx.commit().await {
-        error!("Failed to commit booking transaction: {}", err);
-        return internal_server_error();
-    }
+    tx.commit().await?;
 
-    (
+    Ok((
         StatusCode::CREATED,
         ResponseJson(json!({
             "booking_id": booking_id,
             "message": "Booking created successfully"
         })),
     )
-        .into_response()
+        .into_response())
 }
 
-pub async fn get_hotel(State(app_state): State<AppState>, Path(id): Path<i64>) -> Response {
-    match get_hotel_or_error(&app_state.db_pool, id).await {
-        Ok(hotel) => (StatusCode::OK, ResponseJson(hotel)).into_response(),
-        Err(response) => response,
-    }
+pub async fn get_hotel(
+    State(app_state): State<AppState>,
+    Path(id): Path<i64>,
+) -> AppResult<Response> {
+    let hotel = get_hotel_or_not_found(&app_state.db_pool, id).await?;
+    Ok((StatusCode::OK, ResponseJson(hotel)).into_response())
 }
