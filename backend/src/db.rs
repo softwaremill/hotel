@@ -28,6 +28,10 @@ const SELECT_BOOKINGS_BY_HOTEL_AND_DATE_QUERY: &str =
      AND start_time <= $2 
      AND end_time >= $2
      ORDER BY start_time DESC";
+const SELECT_BOOKING_BY_ID_QUERY: &str =
+    "SELECT id, hotel_id, room_number, guest_name, start_time, end_time, status 
+     FROM bookings 
+     WHERE id = $1";
 
 pub type DbPool = Pool<Postgres>;
 
@@ -153,19 +157,15 @@ pub async fn get_bookings_by_hotel_id_and_date(
 }
 
 /// Gets a specific booking by ID using an existing database transaction.
-pub async fn get_booking_by_id(
-    tx: &mut Transaction<'_, Postgres>,
-    booking_id: i64,
-) -> Result<Option<Booking>> {
-    let row = sqlx::query(
-        "SELECT id, hotel_id, room_number, guest_name, start_time, end_time, status 
-         FROM bookings 
-         WHERE id = $1",
-    )
-    .bind(booking_id)
-    .fetch_optional(&mut **tx)
-    .await
-    .with_context(|| format!("Failed to fetch booking with ID {}", booking_id))?;
+pub async fn get_booking_by_id<'a, E>(executor: E, booking_id: i64) -> Result<Option<Booking>>
+where
+    E: Executor<'a, Database = Postgres>,
+{
+    let row = sqlx::query(SELECT_BOOKING_BY_ID_QUERY)
+        .bind(booking_id)
+        .fetch_optional(executor)
+        .await
+        .with_context(|| format!("Failed to fetch booking with ID {}", booking_id))?;
 
     row.map(|row| row_to_booking(&row)).transpose()
 }

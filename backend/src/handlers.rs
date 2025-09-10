@@ -7,7 +7,7 @@ use crate::error::{AppError, AppResult};
 use crate::models::{BookingStatus, Hotel};
 use crate::models_events::{BookingCheckedInEvent, BookingCreatedEvent, Event};
 use crate::models_request::CreateBookingRequest;
-use crate::room_assignment::can_accommodate_booking;
+use crate::room_assignment::{assign_room_for_checkin, can_accommodate_booking};
 use axum::{
     Json,
     extract::{Path, Query, State},
@@ -22,6 +22,11 @@ use sqlx::{Executor, Postgres};
 #[derive(Deserialize)]
 pub struct BookingQueryParams {
     date: Option<String>,
+}
+
+#[derive(Deserialize)]
+pub struct CheckinQueryParams {
+    today: String,
 }
 
 async fn get_hotel_or_not_found<'a, E>(executor: E, hotel_id: i64) -> AppResult<Hotel>
@@ -146,12 +151,18 @@ pub async fn get_hotel(
 pub async fn checkin_booking(
     State(app_state): State<AppState>,
     Path(booking_id): Path<i64>,
+    Query(params): Query<CheckinQueryParams>,
 ) -> AppResult<Response> {
+    // Parse the today date from query parameter
+    let today = NaiveDate::parse_from_str(&params.today, "%Y-%m-%d").map_err(|_| {
+        AppError::bad_request("Invalid date format for 'today'. Use YYYY-MM-DD", "INVALID_DATE_FORMAT")
+    })?;
+
     // Start a database transaction
     let mut tx = app_state.db_pool.begin().await?;
 
     // Get the booking and verify it exists and is in confirmed state
-    let booking = match get_booking_by_id(&mut tx, booking_id).await? {
+    let booking = match get_booking_by_id(&mut *tx, booking_id).await? {
         Some(booking) => booking,
         None => return Err(AppError::not_found("Booking not found")),
     };
@@ -164,8 +175,31 @@ pub async fn checkin_booking(
         ));
     }
 
-    // Create the checkin event
-    let event = Event::BookingCheckedIn(BookingCheckedInEvent { booking_id });
+    // Get hotel info for room assignment
+    let hotel = get_hotel_or_not_found(&mut *tx, booking.hotel_id).await?;
+    
+    // Get bookings for today and filter for active bookings with assigned rooms
+    let all_bookings = get_bookings_by_hotel_id_and_date(&app_state.db_pool, booking.hotel_id, today).await?;
+    let active_bookings: Vec<_> = all_bookings
+        .into_iter()
+        .filter(|b| b.status == BookingStatus::CheckedIn && b.room_number.is_some())
+        .collect();
+    
+    // Assign a room using the room assignment algorithm
+    let assigned_room = assign_room_for_checkin(
+        hotel.room_count,
+        active_bookings,
+        &booking,
+    ).ok_or_else(|| AppError::bad_request(
+        "No available rooms for check-in", 
+        "NO_ROOMS_AVAILABLE"
+    ))?;
+
+    // Create the checkin event with assigned room
+    let event = Event::BookingCheckedIn(BookingCheckedInEvent { 
+        booking_id, 
+        assigned_room 
+    });
 
     // Process the event within the transaction
     let stream_id = booking_id; // Use booking_id as stream_id

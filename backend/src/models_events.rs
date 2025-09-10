@@ -21,4 +21,5 @@ pub struct BookingCreatedEvent {
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct BookingCheckedInEvent {
     pub booking_id: i64,
+    pub assigned_room: i32,
 }

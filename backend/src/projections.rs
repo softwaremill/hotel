@@ -24,11 +24,12 @@ pub async fn handle_booking_event(tx: &mut Transaction<'_, Postgres>, event: &Ev
             Ok(())
         }
         Event::BookingCheckedIn(checkin_event) => {
-            // Update booking status to checked_in
+            // Update booking status to checked_in and assign room
             sqlx::query(
-                "UPDATE bookings SET status = $1 WHERE id = $2"
+                "UPDATE bookings SET status = $1, room_number = $2 WHERE id = $3"
             )
             .bind(BookingStatus::CheckedIn.to_string())
+            .bind(checkin_event.assigned_room)
             .bind(checkin_event.booking_id)
             .execute(&mut **tx)
             .await?;
