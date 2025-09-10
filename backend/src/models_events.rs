@@ -1,4 +1,4 @@
-use chrono::{DateTime, Utc};
+use chrono::NaiveDate;
 use serde::{Deserialize, Serialize};
 
 // Event types for event sourcing
@@ -13,6 +13,6 @@ pub struct BookingCreatedEvent {
     pub booking_id: i64,
     pub hotel_id: i64,
     pub guest_name: String,
-    pub start_time: DateTime<Utc>,
-    pub end_time: DateTime<Utc>,
+    pub start_time: NaiveDate,
+    pub end_time: NaiveDate,
 }

@@ -1,6 +1,6 @@
 use crate::app_state::AppState;
 use crate::db::{
-    get_and_lock_overlapping_bookings, get_bookings_by_hotel_id, get_hotel_by_id,
+    get_all_hotels, get_and_lock_overlapping_bookings, get_bookings_by_hotel_id, get_hotel_by_id,
     get_next_booking_id,
 };
 use crate::error::{AppError, AppResult};
@@ -32,6 +32,11 @@ pub async fn health_check() -> ResponseJson<Value> {
         "status": "healthy",
         "service": "hotel-backend"
     }))
+}
+
+pub async fn get_hotels(State(app_state): State<AppState>) -> AppResult<Response> {
+    let hotels = get_all_hotels(&app_state.db_pool).await?;
+    Ok((StatusCode::OK, ResponseJson(hotels)).into_response())
 }
 
 pub async fn get_bookings(

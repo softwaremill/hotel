@@ -1,4 +1,4 @@
-use chrono::{DateTime, Utc};
+use chrono::NaiveDate;
 use serde::{Deserialize, Serialize};
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -49,7 +49,7 @@ pub struct Booking {
     pub hotel_id: i64,
     pub room_number: Option<i32>,
     pub guest_name: String,
-    pub start_time: DateTime<Utc>,
-    pub end_time: DateTime<Utc>,
+    pub start_time: NaiveDate,
+    pub end_time: NaiveDate,
     pub status: BookingStatus,
 }

@@ -1,19 +1,21 @@
 use crate::models::{Booking, BookingStatus, Hotel};
 use anyhow::{Context, Result, anyhow};
-use chrono::{DateTime, Utc};
+use chrono::NaiveDate;
 use sqlx::{Executor, PgPool, Pool, Postgres, Row, Transaction, migrate::MigrateError};
 use std::str::FromStr;
 
 const SELECT_HOTEL_QUERY: &str = "SELECT id, name, room_count FROM hotels WHERE id = $1";
+const SELECT_ALL_HOTELS_QUERY: &str = "SELECT id, name, room_count FROM hotels ORDER BY name";
 const SELECT_NEXT_BOOKING_ID_QUERY: &str = "SELECT nextval('booking_id_seq') as next_id";
 const SELECT_OVERLAPPING_BOOKINGS_QUERY: &str =
-    "SELECT FOR UPDATE id, hotel_id, room_number, guest_name, start_time, end_time, status 
+    "SELECT id, hotel_id, room_number, guest_name, start_time, end_time, status 
      FROM bookings 
      WHERE hotel_id = $1 
      AND status IN ('confirmed', 'checked_in')
      AND start_time < $3 
      AND end_time > $2
-     ORDER BY start_time"; // ordering also ensures the locks are acquired always in the same order
+     ORDER BY start_time
+     FOR UPDATE";
 const SELECT_BOOKINGS_BY_HOTEL_QUERY: &str =
     "SELECT id, hotel_id, room_number, guest_name, start_time, end_time, status 
      FROM bookings 
@@ -67,6 +69,16 @@ where
     Ok(row.map(|row| row_to_hotel(&row)))
 }
 
+/// Gets all hotels from the database pool.
+pub async fn get_all_hotels(pool: &DbPool) -> Result<Vec<Hotel>> {
+    let rows = sqlx::query(SELECT_ALL_HOTELS_QUERY)
+        .fetch_all(pool)
+        .await
+        .context("Failed to fetch all hotels")?;
+
+    Ok(rows.into_iter().map(|row| row_to_hotel(&row)).collect())
+}
+
 /// Generates the next booking ID using an existing database transaction.
 pub async fn get_next_booking_id(tx: &mut Transaction<'_, Postgres>) -> Result<i64> {
     let row = sqlx::query(SELECT_NEXT_BOOKING_ID_QUERY)
@@ -82,8 +94,8 @@ pub async fn get_next_booking_id(tx: &mut Transaction<'_, Postgres>) -> Result<i
 pub async fn get_and_lock_overlapping_bookings(
     tx: &mut Transaction<'_, Postgres>,
     hotel_id: i64,
-    start_time: DateTime<Utc>,
-    end_time: DateTime<Utc>,
+    start_time: NaiveDate,
+    end_time: NaiveDate,
 ) -> Result<Vec<Booking>> {
     let rows = sqlx::query(SELECT_OVERLAPPING_BOOKINGS_QUERY)
         .bind(hotel_id)

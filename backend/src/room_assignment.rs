@@ -1,11 +1,11 @@
 use crate::models::Booking;
-use chrono::{DateTime, Utc};
+use chrono::NaiveDate;
 
 pub fn can_accommodate_booking(
     hotel_room_count: i32,
     existing_bookings: Vec<Booking>,
-    new_start: DateTime<Utc>,
-    new_end: DateTime<Utc>,
+    new_start: NaiveDate,
+    new_end: NaiveDate,
 ) -> bool {
     // Create a list of all bookings including the new one (with a dummy ID)
     let mut all_bookings = existing_bookings;
@@ -31,7 +31,7 @@ fn assign_rooms_greedy(bookings: &[Booking], room_count: i32) -> Option<Vec<Opti
     
     // Track which rooms are occupied at any given time
     // Each room tracks when it becomes free
-    let mut room_free_times: Vec<Option<DateTime<Utc>>> = vec![None; room_count as usize];
+    let mut room_free_times: Vec<Option<NaiveDate>> = vec![None; room_count as usize];
 
     for (booking_idx, booking) in bookings.iter().enumerate() {
         let mut assigned = false;
@@ -62,7 +62,6 @@ fn assign_rooms_greedy(bookings: &[Booking], room_count: i32) -> Option<Vec<Opti
 mod tests {
     use super::*;
     use crate::models::BookingStatus;
-    use chrono::{TimeZone, Utc};
 
     fn fake_booking(id: i64, start_day: u32, end_day: u32) -> Booking {
         Booking {
@@ -70,16 +69,16 @@ mod tests {
             hotel_id: 1,
             room_number: None,
             guest_name: format!("Guest {}", id),
-            start_time: Utc.with_ymd_and_hms(2024, 1, start_day, 14, 0, 0).unwrap(),
-            end_time: Utc.with_ymd_and_hms(2024, 1, end_day, 11, 0, 0).unwrap(),
+            start_time: NaiveDate::from_ymd_opt(2024, 1, start_day).unwrap(),
+            end_time: NaiveDate::from_ymd_opt(2024, 1, end_day).unwrap(),
             status: BookingStatus::Confirmed,
         }
     }
 
-    fn request_booking(start_day: u32, end_day: u32) -> (DateTime<Utc>, DateTime<Utc>) {
+    fn request_booking(start_day: u32, end_day: u32) -> (NaiveDate, NaiveDate) {
         (
-            Utc.with_ymd_and_hms(2024, 1, start_day, 14, 0, 0).unwrap(),
-            Utc.with_ymd_and_hms(2024, 1, end_day, 11, 0, 0).unwrap(),
+            NaiveDate::from_ymd_opt(2024, 1, start_day).unwrap(),
+            NaiveDate::from_ymd_opt(2024, 1, end_day).unwrap(),
         )
     }
 
@@ -221,8 +220,8 @@ mod tests {
         ];
         
         // New booking starting same day as checkout should work
-        let start = Utc.with_ymd_and_hms(2024, 1, 5, 14, 0, 0).unwrap(); // checkin 2pm Jan 5
-        let end = Utc.with_ymd_and_hms(2024, 1, 8, 11, 0, 0).unwrap();
+        let start = NaiveDate::from_ymd_opt(2024, 1, 5).unwrap(); // checkin Jan 5
+        let end = NaiveDate::from_ymd_opt(2024, 1, 8).unwrap();
         
         assert!(can_accommodate_booking(1, existing_bookings, start, end));
     }

@@ -1,5 +1,5 @@
 -- Create sequence for generating booking IDs
-CREATE SEQUENCE booking_id_seq START 1;
+CREATE SEQUENCE IF NOT EXISTS booking_id_seq START 1;
 
 -- Create bookings projection table
 -- This table is a projection of events, updated when booking events are processed
