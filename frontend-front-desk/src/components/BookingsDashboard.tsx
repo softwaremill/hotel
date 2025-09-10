@@ -24,6 +24,8 @@ export default function BookingsDashboard() {
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState('')
   const [checkinLoading, setCheckinLoading] = useState<number | null>(null)
+  const [checkoutLoading, setCheckoutLoading] = useState<number | null>(null)
+  const [cancelLoading, setCancelLoading] = useState<number | null>(null)
 
   const today = new Date().toISOString().split('T')[0]
 
@@ -87,6 +89,52 @@ export default function BookingsDashboard() {
     }
   }
 
+  const handleCheckout = async (bookingId: number) => {
+    setCheckoutLoading(bookingId)
+    
+    try {
+      const response = await fetch(`http://localhost:3000/bookings/${bookingId}/checkout`, {
+        method: 'POST',
+      })
+      
+      if (response.ok) {
+        // Re-fetch bookings to get updated status
+        await loadBookings()
+      } else {
+        const errorData = await response.json()
+        setError(`Failed to check out: ${errorData.error || 'Unknown error'}`)
+      }
+    } catch (error) {
+      setError('Failed to check out booking')
+      console.error('Checkout failed:', error)
+    } finally {
+      setCheckoutLoading(null)
+    }
+  }
+
+  const handleCancel = async (bookingId: number) => {
+    setCancelLoading(bookingId)
+    
+    try {
+      const response = await fetch(`http://localhost:3000/bookings/${bookingId}/cancel`, {
+        method: 'POST',
+      })
+      
+      if (response.ok) {
+        // Re-fetch bookings to get updated status
+        await loadBookings()
+      } else {
+        const errorData = await response.json()
+        setError(`Failed to cancel: ${errorData.error || 'Unknown error'}`)
+      }
+    } catch (error) {
+      setError('Failed to cancel booking')
+      console.error('Cancel failed:', error)
+    } finally {
+      setCancelLoading(null)
+    }
+  }
+
   useEffect(() => {
     loadHotel()
     loadBookings()
@@ -138,15 +186,35 @@ export default function BookingsDashboard() {
                     <h4>{booking.guest_name}</h4>
                     {getStatusBadge(booking.status)}
                   </div>
-                  {booking.status === 'confirmed' && (
-                    <button
-                      className="checkin-button"
-                      onClick={() => handleCheckin(booking.id)}
-                      disabled={checkinLoading === booking.id}
-                    >
-                      {checkinLoading === booking.id ? 'Checking in...' : 'Check In'}
-                    </button>
-                  )}
+                  <div className="booking-actions">
+                    {booking.status === 'confirmed' && (
+                      <>
+                        <button
+                          className="checkin-button"
+                          onClick={() => handleCheckin(booking.id)}
+                          disabled={checkinLoading === booking.id}
+                        >
+                          {checkinLoading === booking.id ? 'Checking in...' : 'Check In'}
+                        </button>
+                        <button
+                          className="cancel-button"
+                          onClick={() => handleCancel(booking.id)}
+                          disabled={cancelLoading === booking.id}
+                        >
+                          {cancelLoading === booking.id ? 'Cancelling...' : 'Cancel'}
+                        </button>
+                      </>
+                    )}
+                    {booking.status === 'checked_in' && (
+                      <button
+                        className="checkout-button"
+                        onClick={() => handleCheckout(booking.id)}
+                        disabled={checkoutLoading === booking.id}
+                      >
+                        {checkoutLoading === booking.id ? 'Checking out...' : 'Check Out'}
+                      </button>
+                    )}
+                  </div>
                 </div>
                 <div className="booking-details">
                   <div className="detail">
