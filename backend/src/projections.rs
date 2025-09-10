@@ -3,7 +3,7 @@ use crate::models_events::Event;
 use anyhow::Result;
 use sqlx::{Postgres, Transaction};
 
-pub async fn handle_booking_created(tx: &mut Transaction<'_, Postgres>, event: &Event) -> Result<()> {
+pub async fn handle_booking_event(tx: &mut Transaction<'_, Postgres>, event: &Event) -> Result<()> {
     match event {
         Event::BookingCreated(booking_event) => {
             // Insert booking into projections table
@@ -18,6 +18,18 @@ pub async fn handle_booking_created(tx: &mut Transaction<'_, Postgres>, event: &
             .bind(booking_event.start_time)
             .bind(booking_event.end_time)
             .bind(BookingStatus::Confirmed.to_string())
+            .execute(&mut **tx)
+            .await?;
+            
+            Ok(())
+        }
+        Event::BookingCheckedIn(checkin_event) => {
+            // Update booking status to checked_in
+            sqlx::query(
+                "UPDATE bookings SET status = $1 WHERE id = $2"
+            )
+            .bind(BookingStatus::CheckedIn.to_string())
+            .bind(checkin_event.booking_id)
             .execute(&mut **tx)
             .await?;
             

@@ -28,12 +28,8 @@ impl EventProcessor {
             .execute(&mut **tx)
             .await?;
 
-        // Apply projection updates directly
-        match &event {
-            Event::BookingCreated(_) => {
-                crate::projections::handle_booking_created(tx, &event).await?;
-            }
-        }
+        // Apply projection updates for all events
+        crate::projections::handle_booking_event(tx, &event).await?;
 
         Ok(())
     }

@@ -49,6 +49,7 @@ async fn main() -> anyhow::Result<()> {
         .route("/hotels/{id}", get(handlers::get_hotel))
         .route("/hotels/{id}/bookings", get(handlers::get_bookings))
         .route("/hotels/{id}/bookings", post(handlers::create_booking))
+        .route("/bookings/{booking_id}/checkin", post(handlers::checkin_booking))
         .with_state(app_state)
         .layer(CorsLayer::permissive());
 
