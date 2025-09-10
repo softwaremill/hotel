@@ -47,6 +47,14 @@ pub async fn create_booking(
     Path(hotel_id): Path<i64>,
     Json(request): Json<CreateBookingRequest>,
 ) -> AppResult<Response> {
+    // Validate date range
+    if request.start_time >= request.end_time {
+        return Err(AppError::bad_request(
+            "Start time must be before end time",
+            "INVALID_DATE_RANGE",
+        ));
+    }
+
     // Start a single database transaction for the entire operation
     let mut tx = app_state.db_pool.begin().await?;
 
