@@ -7,6 +7,8 @@ use serde::{Deserialize, Serialize};
 pub enum Event {
     BookingCreated(BookingCreatedEvent),
     BookingCheckedIn(BookingCheckedInEvent),
+    BookingCheckedOut(BookingCheckedOutEvent),
+    BookingCancelled(BookingCancelledEvent),
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -22,4 +24,14 @@ pub struct BookingCreatedEvent {
 pub struct BookingCheckedInEvent {
     pub booking_id: i64,
     pub assigned_room: i32,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct BookingCheckedOutEvent {
+    pub booking_id: i64,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct BookingCancelledEvent {
+    pub booking_id: i64,
 }

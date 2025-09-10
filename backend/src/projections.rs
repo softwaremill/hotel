@@ -36,5 +36,30 @@ pub async fn handle_booking_event(tx: &mut Transaction<'_, Postgres>, event: &Ev
             
             Ok(())
         }
+        Event::BookingCheckedOut(checkout_event) => {
+            // Update booking status to checked_out and free up the room
+            sqlx::query(
+                "UPDATE bookings SET status = $1, room_number = $2 WHERE id = $3"
+            )
+            .bind(BookingStatus::CheckedOut.to_string())
+            .bind(None::<i32>) // Clear room assignment
+            .bind(checkout_event.booking_id)
+            .execute(&mut **tx)
+            .await?;
+            
+            Ok(())
+        }
+        Event::BookingCancelled(cancel_event) => {
+            // Update booking status to cancelled
+            sqlx::query(
+                "UPDATE bookings SET status = $1 WHERE id = $2"
+            )
+            .bind(BookingStatus::Cancelled.to_string())
+            .bind(cancel_event.booking_id)
+            .execute(&mut **tx)
+            .await?;
+            
+            Ok(())
+        }
     }
 }

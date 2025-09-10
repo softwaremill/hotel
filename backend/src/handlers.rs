@@ -5,7 +5,7 @@ use crate::db::{
 };
 use crate::error::{AppError, AppResult};
 use crate::models::{BookingStatus, Hotel};
-use crate::models_events::{BookingCheckedInEvent, BookingCreatedEvent, Event};
+use crate::models_events::{BookingCheckedInEvent, BookingCheckedOutEvent, BookingCancelledEvent, BookingCreatedEvent, Event};
 use crate::models_request::CreateBookingRequest;
 use crate::room_assignment::{assign_room_for_checkin, can_accommodate_booking};
 use axum::{
@@ -215,6 +215,96 @@ pub async fn checkin_booking(
         StatusCode::OK,
         ResponseJson(json!({
             "message": "Booking checked in successfully"
+        })),
+    )
+        .into_response())
+}
+
+pub async fn checkout_booking(
+    State(app_state): State<AppState>,
+    Path(booking_id): Path<i64>,
+) -> AppResult<Response> {
+    // Start a database transaction
+    let mut tx = app_state.db_pool.begin().await?;
+
+    // Get the booking and verify it exists and is in checked-in state
+    let booking = match get_booking_by_id(&mut *tx, booking_id).await? {
+        Some(booking) => booking,
+        None => return Err(AppError::not_found("Booking not found")),
+    };
+
+    // Verify booking is in checked-in state
+    if booking.status != BookingStatus::CheckedIn {
+        return Err(AppError::bad_request(
+            "Booking must be in checked-in state to check out",
+            "INVALID_BOOKING_STATUS",
+        ));
+    }
+
+    // Create the checkout event
+    let event = Event::BookingCheckedOut(BookingCheckedOutEvent { 
+        booking_id 
+    });
+
+    // Process the event within the transaction
+    let stream_id = booking_id;
+    app_state
+        .event_processor
+        .process_event_with_tx(&mut tx, stream_id, event)
+        .await?;
+
+    // Commit the transaction
+    tx.commit().await?;
+
+    Ok((
+        StatusCode::OK,
+        ResponseJson(json!({
+            "message": "Booking checked out successfully"
+        })),
+    )
+        .into_response())
+}
+
+pub async fn cancel_booking(
+    State(app_state): State<AppState>,
+    Path(booking_id): Path<i64>,
+) -> AppResult<Response> {
+    // Start a database transaction
+    let mut tx = app_state.db_pool.begin().await?;
+
+    // Get the booking and verify it exists and is in confirmed state
+    let booking = match get_booking_by_id(&mut *tx, booking_id).await? {
+        Some(booking) => booking,
+        None => return Err(AppError::not_found("Booking not found")),
+    };
+
+    // Verify booking is in confirmed state
+    if booking.status != BookingStatus::Confirmed {
+        return Err(AppError::bad_request(
+            "Booking must be in confirmed state to cancel",
+            "INVALID_BOOKING_STATUS",
+        ));
+    }
+
+    // Create the cancel event
+    let event = Event::BookingCancelled(BookingCancelledEvent { 
+        booking_id 
+    });
+
+    // Process the event within the transaction
+    let stream_id = booking_id;
+    app_state
+        .event_processor
+        .process_event_with_tx(&mut tx, stream_id, event)
+        .await?;
+
+    // Commit the transaction
+    tx.commit().await?;
+
+    Ok((
+        StatusCode::OK,
+        ResponseJson(json!({
+            "message": "Booking cancelled successfully"
         })),
     )
         .into_response())
