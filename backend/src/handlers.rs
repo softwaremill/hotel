@@ -1,6 +1,7 @@
 use crate::app_state::AppState;
 use crate::db::{
-    get_bookings_by_hotel_id, get_hotel_by_id, get_next_booking_id, get_overlapping_bookings,
+    get_and_lock_overlapping_bookings, get_bookings_by_hotel_id, get_hotel_by_id,
+    get_next_booking_id,
 };
 use crate::error::{AppError, AppResult};
 use crate::models::Hotel;
@@ -53,8 +54,11 @@ pub async fn create_booking(
     let hotel = get_hotel_or_not_found(&mut *tx, hotel_id).await?;
 
     // Check room availability within the transaction
+    // Using SELECT ... FOR UPDATE so that it's not possible to concurrently add overlapping bookings,
+    // which might use stale data to be used to verify booking possibility (write skew).
     let overlapping_bookings =
-        get_overlapping_bookings(&mut tx, hotel_id, request.start_time, request.end_time).await?;
+        get_and_lock_overlapping_bookings(&mut tx, hotel_id, request.start_time, request.end_time)
+            .await?;
 
     if !can_accommodate_booking(
         hotel.room_count,

@@ -7,13 +7,13 @@ use std::str::FromStr;
 const SELECT_HOTEL_QUERY: &str = "SELECT id, name, room_count FROM hotels WHERE id = $1";
 const SELECT_NEXT_BOOKING_ID_QUERY: &str = "SELECT nextval('booking_id_seq') as next_id";
 const SELECT_OVERLAPPING_BOOKINGS_QUERY: &str =
-    "SELECT id, hotel_id, room_number, guest_name, start_time, end_time, status 
+    "SELECT FOR UPDATE id, hotel_id, room_number, guest_name, start_time, end_time, status 
      FROM bookings 
      WHERE hotel_id = $1 
      AND status IN ('confirmed', 'checked_in')
-     AND start_time <= $3 
-     AND end_time >= $2
-     ORDER BY start_time";
+     AND start_time < $3 
+     AND end_time > $2
+     ORDER BY start_time"; // ordering also ensures the locks are acquired always in the same order
 const SELECT_BOOKINGS_BY_HOTEL_QUERY: &str =
     "SELECT id, hotel_id, room_number, guest_name, start_time, end_time, status 
      FROM bookings 
@@ -79,7 +79,7 @@ pub async fn get_next_booking_id(tx: &mut Transaction<'_, Postgres>) -> Result<i
 
 /// Gets overlapping bookings using an existing database transaction.
 /// This ensures consistent reads within a transaction context.
-pub async fn get_overlapping_bookings(
+pub async fn get_and_lock_overlapping_bookings(
     tx: &mut Transaction<'_, Postgres>,
     hotel_id: i64,
     start_time: DateTime<Utc>,
