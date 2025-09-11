@@ -1,15 +1,6 @@
 import { useState, useEffect } from 'react'
 import { useParams, Link } from 'react-router-dom'
-
-interface Booking {
-  id: number
-  hotel_id: number
-  room_number: number | null
-  guest_name: string
-  start_time: string
-  end_time: string
-  status: string
-}
+import { useElectricBookings } from '../hooks/useElectricBookings'
 
 interface Hotel {
   id: number
@@ -19,71 +10,50 @@ interface Hotel {
 
 export default function BookingsDashboard() {
   const { hotelId } = useParams<{ hotelId: string }>()
-  const [bookings, setBookings] = useState<Booking[]>([])
   const [hotel, setHotel] = useState<Hotel | null>(null)
-  const [loading, setLoading] = useState(true)
-  const [error, setError] = useState('')
+  const [hotelError, setHotelError] = useState('')
   const [checkinLoading, setCheckinLoading] = useState<number | null>(null)
   const [checkoutLoading, setCheckoutLoading] = useState<number | null>(null)
   const [cancelLoading, setCancelLoading] = useState<number | null>(null)
 
   const today = new Date().toISOString().split('T')[0]
 
+  // Use Electric hook for real-time bookings
+  const { bookings, loading, error } = useElectricBookings(hotelId!, today)
+
   const loadHotel = async () => {
     if (!hotelId) return
-    
+
     try {
       const response = await fetch(`http://localhost:3000/hotels/${hotelId}`)
       if (response.ok) {
         const data = await response.json()
         setHotel(data)
       } else {
-        setError('Hotel not found')
+        setHotelError('Hotel not found')
       }
     } catch (error) {
-      setError('Failed to load hotel')
+      setHotelError('Failed to load hotel')
       console.error('Failed to load hotel:', error)
-    }
-  }
-
-  const loadBookings = async () => {
-    if (!hotelId) return
-
-    try {
-      setLoading(true)
-      const response = await fetch(`http://localhost:3000/hotels/${hotelId}/bookings?date=${today}`)
-      if (response.ok) {
-        const data = await response.json()
-        setBookings(data)
-      } else {
-        setError('Failed to load bookings')
-      }
-    } catch (error) {
-      setError('Failed to connect to server')
-      console.error('Failed to load bookings:', error)
-    } finally {
-      setLoading(false)
     }
   }
 
   const handleCheckin = async (bookingId: number) => {
     setCheckinLoading(bookingId)
-    
+
     try {
       const response = await fetch(`http://localhost:3000/bookings/${bookingId}/checkin?today=${today}`, {
         method: 'POST',
       })
-      
+
       if (response.ok) {
-        // Re-fetch bookings to get updated status
-        await loadBookings()
+        // Electric will automatically update the UI when the backend processes the change
       } else {
         const errorData = await response.json()
-        setError(`Failed to check in: ${errorData.error || 'Unknown error'}`)
+        console.error(`Failed to check in: ${errorData.error || 'Unknown error'}`)
       }
     } catch (error) {
-      setError('Failed to check in booking')
-      console.error('Checkin failed:', error)
+      console.error('Failed to check in booking:', error)
     } finally {
       setCheckinLoading(null)
     }
@@ -91,22 +61,20 @@ export default function BookingsDashboard() {
 
   const handleCheckout = async (bookingId: number) => {
     setCheckoutLoading(bookingId)
-    
+
     try {
       const response = await fetch(`http://localhost:3000/bookings/${bookingId}/checkout`, {
         method: 'POST',
       })
-      
+
       if (response.ok) {
-        // Re-fetch bookings to get updated status
-        await loadBookings()
+        // Electric will automatically update the UI when the backend processes the change
       } else {
         const errorData = await response.json()
-        setError(`Failed to check out: ${errorData.error || 'Unknown error'}`)
+        console.error(`Failed to check out: ${errorData.error || 'Unknown error'}`)
       }
     } catch (error) {
-      setError('Failed to check out booking')
-      console.error('Checkout failed:', error)
+      console.error('Failed to check out booking:', error)
     } finally {
       setCheckoutLoading(null)
     }
@@ -114,22 +82,20 @@ export default function BookingsDashboard() {
 
   const handleCancel = async (bookingId: number) => {
     setCancelLoading(bookingId)
-    
+
     try {
       const response = await fetch(`http://localhost:3000/bookings/${bookingId}/cancel`, {
         method: 'POST',
       })
-      
+
       if (response.ok) {
-        // Re-fetch bookings to get updated status
-        await loadBookings()
+        // Electric will automatically update the UI when the backend processes the change
       } else {
         const errorData = await response.json()
-        setError(`Failed to cancel: ${errorData.error || 'Unknown error'}`)
+        console.error(`Failed to cancel: ${errorData.error || 'Unknown error'}`)
       }
     } catch (error) {
-      setError('Failed to cancel booking')
-      console.error('Cancel failed:', error)
+      console.error('Failed to cancel booking:', error)
     } finally {
       setCancelLoading(null)
     }
@@ -137,7 +103,6 @@ export default function BookingsDashboard() {
 
   useEffect(() => {
     loadHotel()
-    loadBookings()
   }, [hotelId])
 
   const formatDate = (dateStr: string) => {
@@ -153,10 +118,10 @@ export default function BookingsDashboard() {
     return <div className="loading">Loading bookings...</div>
   }
 
-  if (error) {
+  if (error || hotelError) {
     return (
       <div className="error-container">
-        <div className="error">Error: {error}</div>
+        <div className="error">Error: {error || hotelError}</div>
         <Link to="/" className="back-link">← Back to Hotel Selection</Link>
       </div>
     )
@@ -172,7 +137,7 @@ export default function BookingsDashboard() {
 
       <div className="bookings-container">
         <h3>Today's Bookings ({bookings.length})</h3>
-        
+
         {bookings.length === 0 ? (
           <div className="empty-state">
             <p>No bookings for today</p>

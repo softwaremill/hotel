@@ -1,11 +1,14 @@
 use crate::app_state::AppState;
 use crate::db::{
-    get_all_hotels, get_and_lock_overlapping_bookings, get_booking_by_id, get_bookings_by_hotel_id,
+    get_all_hotels, get_and_lock_overlapping_bookings, get_booking_by_id,
     get_bookings_by_hotel_id_and_date, get_hotel_by_id, get_next_booking_id,
 };
 use crate::error::{AppError, AppResult};
 use crate::models::{BookingStatus, Hotel};
-use crate::models_events::{BookingCheckedInEvent, BookingCheckedOutEvent, BookingCancelledEvent, BookingCreatedEvent, Event};
+use crate::models_events::{
+    BookingCancelledEvent, BookingCheckedInEvent, BookingCheckedOutEvent, BookingCreatedEvent,
+    Event,
+};
 use crate::models_request::CreateBookingRequest;
 use crate::room_assignment::{assign_room_for_checkin, can_accommodate_booking};
 use axum::{
@@ -18,11 +21,6 @@ use chrono::NaiveDate;
 use serde::Deserialize;
 use serde_json::{Value, json};
 use sqlx::{Executor, Postgres};
-
-#[derive(Deserialize)]
-pub struct BookingQueryParams {
-    date: Option<String>,
-}
 
 #[derive(Deserialize)]
 pub struct CheckinQueryParams {
@@ -49,25 +47,6 @@ pub async fn health_check() -> ResponseJson<Value> {
 pub async fn get_hotels(State(app_state): State<AppState>) -> AppResult<Response> {
     let hotels = get_all_hotels(&app_state.db_pool).await?;
     Ok((StatusCode::OK, ResponseJson(hotels)).into_response())
-}
-
-pub async fn get_bookings(
-    State(app_state): State<AppState>,
-    Path(hotel_id): Path<i64>,
-    Query(params): Query<BookingQueryParams>,
-) -> AppResult<Response> {
-    let bookings = if let Some(date_str) = params.date {
-        // Parse the date string
-        let date = NaiveDate::parse_from_str(&date_str, "%Y-%m-%d").map_err(|_| {
-            AppError::bad_request("Invalid date format. Use YYYY-MM-DD", "INVALID_DATE_FORMAT")
-        })?;
-
-        get_bookings_by_hotel_id_and_date(&app_state.db_pool, hotel_id, date).await?
-    } else {
-        get_bookings_by_hotel_id(&app_state.db_pool, hotel_id).await?
-    };
-
-    Ok((StatusCode::OK, ResponseJson(bookings)).into_response())
 }
 
 pub async fn create_booking(
@@ -155,7 +134,10 @@ pub async fn checkin_booking(
 ) -> AppResult<Response> {
     // Parse the today date from query parameter
     let today = NaiveDate::parse_from_str(&params.today, "%Y-%m-%d").map_err(|_| {
-        AppError::bad_request("Invalid date format for 'today'. Use YYYY-MM-DD", "INVALID_DATE_FORMAT")
+        AppError::bad_request(
+            "Invalid date format for 'today'. Use YYYY-MM-DD",
+            "INVALID_DATE_FORMAT",
+        )
     })?;
 
     // Start a database transaction
@@ -177,28 +159,25 @@ pub async fn checkin_booking(
 
     // Get hotel info for room assignment
     let hotel = get_hotel_or_not_found(&mut *tx, booking.hotel_id).await?;
-    
+
     // Get bookings for today and filter for active bookings with assigned rooms
-    let all_bookings = get_bookings_by_hotel_id_and_date(&app_state.db_pool, booking.hotel_id, today).await?;
+    let all_bookings =
+        get_bookings_by_hotel_id_and_date(&app_state.db_pool, booking.hotel_id, today).await?;
     let active_bookings: Vec<_> = all_bookings
         .into_iter()
         .filter(|b| b.status == BookingStatus::CheckedIn && b.room_number.is_some())
         .collect();
-    
+
     // Assign a room using the room assignment algorithm
-    let assigned_room = assign_room_for_checkin(
-        hotel.room_count,
-        active_bookings,
-        &booking,
-    ).ok_or_else(|| AppError::bad_request(
-        "No available rooms for check-in", 
-        "NO_ROOMS_AVAILABLE"
-    ))?;
+    let assigned_room = assign_room_for_checkin(hotel.room_count, active_bookings, &booking)
+        .ok_or_else(|| {
+            AppError::bad_request("No available rooms for check-in", "NO_ROOMS_AVAILABLE")
+        })?;
 
     // Create the checkin event with assigned room
-    let event = Event::BookingCheckedIn(BookingCheckedInEvent { 
-        booking_id, 
-        assigned_room 
+    let event = Event::BookingCheckedIn(BookingCheckedInEvent {
+        booking_id,
+        assigned_room,
     });
 
     // Process the event within the transaction
@@ -242,9 +221,7 @@ pub async fn checkout_booking(
     }
 
     // Create the checkout event
-    let event = Event::BookingCheckedOut(BookingCheckedOutEvent { 
-        booking_id 
-    });
+    let event = Event::BookingCheckedOut(BookingCheckedOutEvent { booking_id });
 
     // Process the event within the transaction
     let stream_id = booking_id;
@@ -287,9 +264,7 @@ pub async fn cancel_booking(
     }
 
     // Create the cancel event
-    let event = Event::BookingCancelled(BookingCancelledEvent { 
-        booking_id 
-    });
+    let event = Event::BookingCancelled(BookingCancelledEvent { booking_id });
 
     // Process the event within the transaction
     let stream_id = booking_id;

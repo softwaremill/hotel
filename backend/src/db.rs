@@ -16,11 +16,6 @@ const SELECT_OVERLAPPING_BOOKINGS_QUERY: &str =
      AND end_time > $2
      ORDER BY start_time
      FOR UPDATE";
-const SELECT_BOOKINGS_BY_HOTEL_QUERY: &str =
-    "SELECT id, hotel_id, room_number, guest_name, start_time, end_time, status 
-     FROM bookings 
-     WHERE hotel_id = $1
-     ORDER BY start_time DESC";
 const SELECT_BOOKINGS_BY_HOTEL_AND_DATE_QUERY: &str =
     "SELECT id, hotel_id, room_number, guest_name, start_time, end_time, status 
      FROM bookings 
@@ -120,17 +115,6 @@ pub async fn get_and_lock_overlapping_bookings(
                 hotel_id
             )
         })?;
-
-    rows.into_iter().map(|row| row_to_booking(&row)).collect()
-}
-
-/// Gets all bookings for a specific hotel from the database pool.
-pub async fn get_bookings_by_hotel_id(pool: &DbPool, hotel_id: i64) -> Result<Vec<Booking>> {
-    let rows = sqlx::query(SELECT_BOOKINGS_BY_HOTEL_QUERY)
-        .bind(hotel_id)
-        .fetch_all(pool)
-        .await
-        .with_context(|| format!("Failed to fetch bookings for hotel {}", hotel_id))?;
 
     rows.into_iter().map(|row| row_to_booking(&row)).collect()
 }

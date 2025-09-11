@@ -1,0 +1,33 @@
+# Electric SQL Docker Compose Configuration
+# 
+# Prerequisites:
+# - Local PostgreSQL instance running with logical replication enabled (wal_level=logical)
+# - PostgreSQL accessible at: postgresql://postgres:postgres@localhost:5432/hotel
+#
+# Development Commands:
+# Start Electric: docker compose -f docker-compose.electric.yml up -d
+# Stop Electric:  docker compose -f docker-compose.electric.yml down
+# View logs:      docker compose -f docker-compose.electric.yml logs -f electric
+# Restart:        docker compose -f docker-compose.electric.yml restart
+
+services:
+  electric:
+    image: electricsql/electric:latest
+    environment:
+      # Connect to local PostgreSQL instance via host.docker.internal
+      DATABASE_URL: postgresql://postgres:postgres@host.docker.internal:5432/hotel
+      # Use insecure mode for development (do not use in production)
+      ELECTRIC_INSECURE: "true"
+    ports:
+      # Electric HTTP API: container runs on 3000, expose on host 3001
+      - "3001:3000"
+      # Note: PostgreSQL proxy port not needed since we connect directly to local instance
+    networks:
+      - hotel-network
+    extra_hosts:
+      # Allow container to access host machine services
+      - "host.docker.internal:host-gateway"
+
+networks:
+  hotel-network:
+    driver: bridge
