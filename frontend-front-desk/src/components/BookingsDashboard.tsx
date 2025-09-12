@@ -13,15 +13,12 @@ export default function BookingsDashboard() {
   const { hotelId } = useParams<{ hotelId: string }>()
   const [hotel, setHotel] = useState<Hotel | null>(null)
   const [hotelError, setHotelError] = useState('')
-  const [checkinLoading, setCheckinLoading] = useState<number | null>(null)
-  const [checkoutLoading, setCheckoutLoading] = useState<number | null>(null)
-  const [cancelLoading, setCancelLoading] = useState<number | null>(null)
   const { isOffline, setOffline } = useOffline()
 
   const today = new Date().toISOString().split('T')[0]
 
   // Use Electric hook for real-time bookings
-  const { bookings, loading, error } = useElectricBookings(hotelId!, today)
+  const { bookings, error } = useElectricBookings(hotelId!, today)
 
   const loadHotel = async () => {
     if (!hotelId) return
@@ -41,8 +38,6 @@ export default function BookingsDashboard() {
   }
 
   const handleCheckin = async (bookingId: number) => {
-    setCheckinLoading(bookingId)
-
     try {
       const response = await fetch(`http://localhost:3000/bookings/${bookingId}/checkin?today=${today}`, {
         method: 'POST',
@@ -59,14 +54,10 @@ export default function BookingsDashboard() {
       console.error('Failed to check in booking:', error)
       // Network error means we're offline
       setOffline(true)
-    } finally {
-      setCheckinLoading(null)
     }
   }
 
   const handleCheckout = async (bookingId: number) => {
-    setCheckoutLoading(bookingId)
-
     try {
       const response = await fetch(`http://localhost:3000/bookings/${bookingId}/checkout`, {
         method: 'POST',
@@ -82,14 +73,10 @@ export default function BookingsDashboard() {
       console.error('Failed to check out booking:', error)
       // Network error means we're offline
       setOffline(true)
-    } finally {
-      setCheckoutLoading(null)
     }
   }
 
   const handleCancel = async (bookingId: number) => {
-    setCancelLoading(bookingId)
-
     try {
       const response = await fetch(`http://localhost:3000/bookings/${bookingId}/cancel`, {
         method: 'POST',
@@ -105,8 +92,6 @@ export default function BookingsDashboard() {
       console.error('Failed to cancel booking:', error)
       // Network error means we're offline
       setOffline(true)
-    } finally {
-      setCancelLoading(null)
     }
   }
 
@@ -123,9 +108,6 @@ export default function BookingsDashboard() {
     return <span className={`status-badge ${statusClass}`}>{status}</span>
   }
 
-  if (loading) {
-    return <div className="loading">Loading bookings...</div>
-  }
 
   if (error || hotelError) {
     return (
@@ -172,16 +154,15 @@ export default function BookingsDashboard() {
                         <button
                           className="checkin-button"
                           onClick={() => handleCheckin(booking.id)}
-                          disabled={checkinLoading === booking.id}
                         >
-                          {checkinLoading === booking.id ? 'Checking in...' : 'Check In'}
+                          Check In
                         </button>
                         <button
                           className="cancel-button"
                           onClick={() => handleCancel(booking.id)}
-                          disabled={cancelLoading === booking.id || isOffline}
+                          disabled={isOffline}
                         >
-                          {cancelLoading === booking.id ? 'Cancelling...' : 'Cancel'}
+                          Cancel
                         </button>
                       </>
                     )}
@@ -189,9 +170,9 @@ export default function BookingsDashboard() {
                       <button
                         className="checkout-button"
                         onClick={() => handleCheckout(booking.id)}
-                        disabled={checkoutLoading === booking.id || isOffline}
+                        disabled={isOffline}
                       >
-                        {checkoutLoading === booking.id ? 'Checking out...' : 'Check Out'}
+                        Check Out
                       </button>
                     )}
                   </div>

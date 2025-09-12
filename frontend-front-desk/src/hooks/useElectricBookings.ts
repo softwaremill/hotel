@@ -15,7 +15,7 @@ export interface Booking extends Record<string, unknown> {
 export function useElectricBookings(hotelId: string, today: string) {
   const { setOffline } = useOffline()
 
-  const { isLoading, data, error, stream } = useShape<Booking>({
+  const { data, error, stream } = useShape<Booking>({
     url: `http://localhost:3000/hotels/${hotelId}/bookings/shape?date=${today}`,
   })
 
@@ -66,7 +66,6 @@ export function useElectricBookings(hotelId: string, today: string) {
 
   return {
     bookings,
-    loading: isLoading,
     error: error ? String(error) : null,
   }
 }
