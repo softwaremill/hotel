@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react'
 import { useParams, Link } from 'react-router-dom'
 import { useElectricBookings } from '../hooks/useElectricBookings'
+import { useOffline } from '../contexts/OfflineContext'
 
 interface Hotel {
   id: number
@@ -15,6 +16,7 @@ export default function BookingsDashboard() {
   const [checkinLoading, setCheckinLoading] = useState<number | null>(null)
   const [checkoutLoading, setCheckoutLoading] = useState<number | null>(null)
   const [cancelLoading, setCancelLoading] = useState<number | null>(null)
+  const { isOffline, setOffline } = useOffline()
 
   const today = new Date().toISOString().split('T')[0]
 
@@ -47,6 +49,7 @@ export default function BookingsDashboard() {
       })
 
       if (response.ok) {
+        setOffline(false)
         // Electric will automatically update the UI when the backend processes the change
       } else {
         const errorData = await response.json()
@@ -54,6 +57,8 @@ export default function BookingsDashboard() {
       }
     } catch (error) {
       console.error('Failed to check in booking:', error)
+      // Network error means we're offline
+      setOffline(true)
     } finally {
       setCheckinLoading(null)
     }
@@ -75,6 +80,8 @@ export default function BookingsDashboard() {
       }
     } catch (error) {
       console.error('Failed to check out booking:', error)
+      // Network error means we're offline
+      setOffline(true)
     } finally {
       setCheckoutLoading(null)
     }
@@ -96,6 +103,8 @@ export default function BookingsDashboard() {
       }
     } catch (error) {
       console.error('Failed to cancel booking:', error)
+      // Network error means we're offline
+      setOffline(true)
     } finally {
       setCancelLoading(null)
     }
@@ -103,7 +112,7 @@ export default function BookingsDashboard() {
 
   useEffect(() => {
     loadHotel()
-  }, [hotelId])
+  }, [hotelId]) // eslint-disable-line react-hooks/exhaustive-deps
 
   const formatDate = (dateStr: string) => {
     return new Date(dateStr).toLocaleDateString()
@@ -135,6 +144,12 @@ export default function BookingsDashboard() {
         <p className="date-info">Bookings for today: {new Date(today).toLocaleDateString()}</p>
       </div>
 
+      {isOffline && (
+        <div className="offline-banner">
+          Network connectivity problem, working in degraded mode. Only manual checkins are possible.
+        </div>
+      )}
+
       <div className="bookings-container">
         <h3>Today's Bookings ({bookings.length})</h3>
 
@@ -164,7 +179,7 @@ export default function BookingsDashboard() {
                         <button
                           className="cancel-button"
                           onClick={() => handleCancel(booking.id)}
-                          disabled={cancelLoading === booking.id}
+                          disabled={cancelLoading === booking.id || isOffline}
                         >
                           {cancelLoading === booking.id ? 'Cancelling...' : 'Cancel'}
                         </button>
@@ -174,7 +189,7 @@ export default function BookingsDashboard() {
                       <button
                         className="checkout-button"
                         onClick={() => handleCheckout(booking.id)}
-                        disabled={checkoutLoading === booking.id}
+                        disabled={checkoutLoading === booking.id || isOffline}
                       >
                         {checkoutLoading === booking.id ? 'Checking out...' : 'Check Out'}
                       </button>

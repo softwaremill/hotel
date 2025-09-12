@@ -1,5 +1,6 @@
 import { useShape } from '@electric-sql/react'
-import { useMemo } from 'react'
+import { useMemo, useEffect } from 'react'
+import { useOffline } from '../contexts/OfflineContext'
 
 export interface Booking extends Record<string, unknown> {
   id: number
@@ -12,9 +13,23 @@ export interface Booking extends Record<string, unknown> {
 }
 
 export function useElectricBookings(hotelId: string, today: string) {
-  const { isLoading, data, error } = useShape<Booking>({
+  const { setOffline } = useOffline()
+
+  const { isLoading, data, error, stream } = useShape<Booking>({
     url: `http://localhost:3000/hotels/${hotelId}/bookings/shape?date=${today}`,
   })
+
+  // Monitor connection state using Electric's internal state
+  useEffect(() => {
+    const checkConnectionState = () => {
+      const isConnected = stream?.isConnected() ?? false
+      setOffline(!isConnected)
+    }
+
+    // Check connection state periodically
+    const interval = setInterval(checkConnectionState, 100)
+    return () => clearInterval(interval)
+  }, [stream, setOffline])
 
   const bookings = useMemo(() => {
     if (!data) return []

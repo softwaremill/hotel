@@ -257,6 +257,19 @@ h1 {
   cursor: not-allowed;
 }
 
+/* Offline Banner */
+.offline-banner {
+  background: #f3f4f6;
+  color: #6b7280;
+  border: 1px solid #d1d5db;
+  border-radius: 6px;
+  padding: 12px 16px;
+  margin-bottom: 20px;
+  font-size: 0.9rem;
+  text-align: center;
+  font-weight: 500;
+}
+
 /* Common Styles */
 .loading, .error, .empty-state {
   text-align: center;
