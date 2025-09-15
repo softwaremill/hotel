@@ -16,6 +16,7 @@ mod event_processor;
 mod handlers;
 mod models;
 mod models_events;
+mod models_client_events;
 mod models_request;
 mod projections;
 mod room_assignment;
@@ -69,6 +70,7 @@ async fn main() -> anyhow::Result<()> {
             "/bookings/{booking_id}/cancel",
             post(handlers::cancel_booking),
         )
+        .route("/client-events", post(handlers::handle_client_event))
         .with_state(app_state)
         .layer(CorsLayer::permissive());
 

@@ -1,19 +1,24 @@
 import { useShape } from '@electric-sql/react'
 import { useMemo, useEffect } from 'react'
 import { useOffline } from '../contexts/OfflineContext'
+import { useOfflineEvents } from '../contexts/OfflineEventsContext'
 
 export interface Booking extends Record<string, unknown> {
-  id: number
+  id: string
   hotel_id: number
   room_number: number | null
   guest_name: string
   start_time: string
   end_time: string
   status: string
+  // Flag to indicate this booking has unsynced changes
+  // _ because it's a temporary client-side flag
+  _pendingSync?: boolean
 }
 
 export function useElectricBookings(hotelId: string, today: string) {
   const { setOffline } = useOffline()
+  const { pendingEvents } = useOfflineEvents()
 
   const { data, error, stream } = useShape<Booking>({
     url: `http://localhost:3000/hotels/${hotelId}/bookings/shape?date=${today}`,
@@ -42,7 +47,7 @@ export function useElectricBookings(hotelId: string, today: string) {
       } else {
         // Otherwise check Electric's connection state
         const isConnected = stream?.isConnected() ?? false
-        setOffline(!isConnected)
+        setOffline(!isConnected);
       }
     }
     const interval = setInterval(checkConnectionState, 500)
@@ -57,12 +62,33 @@ export function useElectricBookings(hotelId: string, today: string) {
   const bookings = useMemo(() => {
     if (!data) return []
 
-    // Server-side filtering is now handled by the backend
-    // Just sort alphabetically by guest name  
-    return [...data].sort((a, b) =>
+    // Start with server data and convert numeric IDs to strings
+    let bookingsWithEvents = data.map(booking => ({
+      ...booking,
+      id: String(booking.id) // Convert numeric ID to string for consistency
+    }))
+
+    // Apply offline checkin events to overlay local changes
+    pendingEvents.forEach(event => {
+      if (event.hotelId === hotelId && event.today === today) {
+        const bookingIndex = bookingsWithEvents.findIndex(b => b.id === event.bookingId)
+        if (bookingIndex !== -1) {
+          // Update the booking to reflect the offline checkin
+          bookingsWithEvents[bookingIndex] = {
+            ...bookingsWithEvents[bookingIndex],
+            status: 'checked_in',
+            room_number: event.roomNumber,
+            _pendingSync: true // Mark as having pending changes
+          }
+        }
+      }
+    })
+
+    // Sort alphabetically by guest name  
+    return bookingsWithEvents.sort((a, b) =>
       String(a.guest_name).localeCompare(String(b.guest_name))
     )
-  }, [data])
+  }, [data, pendingEvents, hotelId, today])
 
   return {
     bookings,

@@ -140,6 +140,11 @@ h1 {
   background: #f9fafb;
 }
 
+.booking-card.pending-sync {
+  border-left: 4px solid #f59e0b;
+  background: #fefbf0;
+}
+
 .booking-header {
   display: flex;
   justify-content: space-between;
@@ -151,6 +156,13 @@ h1 {
   display: flex;
   align-items: center;
   gap: 12px;
+}
+
+.status-container {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
 }
 
 .booking-header h4 {
@@ -185,6 +197,17 @@ h1 {
 .status-badge.cancelled {
   background: #fee2e2;
   color: #dc2626;
+}
+
+.pending-sync-badge {
+  padding: 4px 8px;
+  border-radius: 12px;
+  font-size: 0.75rem;
+  font-weight: 500;
+  background: #fef3c7;
+  color: #92400e;
+  text-transform: uppercase;
+  border: 1px solid #f59e0b;
 }
 
 .booking-details {
@@ -287,6 +310,135 @@ h1 {
   padding: 30px;
   box-shadow: 0 4px 20px rgba(0, 0, 0, 0.1);
   text-align: center;
+}
+
+/* Room Selector Modal Styles */
+.room-selector-overlay {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background: rgba(0, 0, 0, 0.5);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 1000;
+}
+
+.room-selector-modal {
+  background: white;
+  border-radius: 12px;
+  padding: 30px;
+  max-width: 500px;
+  width: 90%;
+  max-height: 80vh;
+  overflow-y: auto;
+  box-shadow: 0 10px 40px rgba(0, 0, 0, 0.2);
+}
+
+.room-selector-header {
+  margin-bottom: 25px;
+  text-align: center;
+}
+
+.room-selector-header h3 {
+  color: #1a202c;
+  font-size: 1.3rem;
+  margin-bottom: 15px;
+}
+
+.room-selector-header p {
+  color: #6b7280;
+  margin-bottom: 5px;
+}
+
+.room-selector-content {
+  margin-bottom: 25px;
+}
+
+.room-selector-content > p {
+  color: #4a5568;
+  font-weight: 500;
+  margin-bottom: 15px;
+}
+
+.room-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(100px, 1fr));
+  gap: 10px;
+}
+
+.room-option {
+  padding: 12px 8px;
+  border: 2px solid #e5e7eb;
+  border-radius: 8px;
+  background: white;
+  color: #374151;
+  font-size: 0.9rem;
+  font-weight: 500;
+  cursor: pointer;
+  transition: all 0.2s ease;
+}
+
+.room-option:hover {
+  border-color: #3b82f6;
+  background: #f0f9ff;
+}
+
+.room-option.selected {
+  border-color: #3b82f6;
+  background: #3b82f6;
+  color: white;
+}
+
+.no-rooms-message {
+  text-align: center;
+  padding: 20px;
+  color: #6b7280;
+}
+
+.room-selector-actions {
+  display: flex;
+  gap: 12px;
+  justify-content: flex-end;
+}
+
+.room-selector-actions .cancel-button {
+  background-color: #6b7280;
+  color: white;
+  padding: 10px 20px;
+  border: none;
+  border-radius: 6px;
+  font-size: 0.9rem;
+  font-weight: 500;
+  cursor: pointer;
+  transition: background-color 0.2s ease;
+}
+
+.room-selector-actions .cancel-button:hover {
+  background-color: #4b5563;
+}
+
+.room-selector-actions .confirm-button {
+  background-color: #16a34a;
+  color: white;
+  padding: 10px 20px;
+  border: none;
+  border-radius: 6px;
+  font-size: 0.9rem;
+  font-weight: 500;
+  cursor: pointer;
+  transition: background-color 0.2s ease;
+}
+
+.room-selector-actions .confirm-button:hover:not(:disabled) {
+  background-color: #15803d;
+}
+
+.room-selector-actions .confirm-button:disabled {
+  background-color: #9ca3af;
+  cursor: not-allowed;
 }
 
 /* Mobile Responsive */
