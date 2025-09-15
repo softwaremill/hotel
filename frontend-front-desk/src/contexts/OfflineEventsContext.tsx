@@ -76,7 +76,7 @@ export const OfflineEventsProvider: React.FC<OfflineEventsProviderProps> = ({ ch
   const syncPendingEvents = async () => {
     // Check if sync is already running
     if (syncRunningRef.current) return
-    
+
     // Get current events from ref (always fresh)
     const currentEvents = pendingEventsRef.current
     if (currentEvents.length === 0) return
