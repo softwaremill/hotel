@@ -84,10 +84,19 @@ export function useElectricBookings(hotelId: string, today: string) {
       }
     })
 
-    // Sort alphabetically by guest name  
-    return bookingsWithEvents.sort((a, b) =>
-      String(a.guest_name).localeCompare(String(b.guest_name))
-    )
+    // Sort: actionable bookings first (confirmed/checked_in), then non-actionable (cancelled/checked_out)
+    // Within each group, sort alphabetically by guest name
+    return bookingsWithEvents.sort((a, b) => {
+      const isActionableA = a.status === 'confirmed' || a.status === 'checked_in'
+      const isActionableB = b.status === 'confirmed' || b.status === 'checked_in'
+      
+      // If one is actionable and the other isn't, actionable comes first
+      if (isActionableA && !isActionableB) return -1
+      if (!isActionableA && isActionableB) return 1
+      
+      // If both have same actionability, sort by guest name
+      return String(a.guest_name).localeCompare(String(b.guest_name))
+    })
   }, [data, pendingEvents, hotelId, today])
 
   return {
